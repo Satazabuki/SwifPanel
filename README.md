@@ -12,6 +12,11 @@ Supported games: **Counter-Strike 1.6**, **Counter-Strike 2** and **Minecraft**
 ![Project Screenshot](images/swiif1.jpg)
 ---
 
+## Panel Version
+0.0.1b
+
+---
+
 ## Contents
 
 - [Features](#features)
