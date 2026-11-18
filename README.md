@@ -99,7 +99,6 @@ reference: [`docs/SPRINGS.md`](docs/SPRINGS.md).
 ├── springs_install.php     node installer + agent source (served as a script)
 ├── assets/style.css        shared stylesheet
 ├── vendor/                 phpseclib, paragonie (legacy from the SSH era)
-├── .well-known/            Let's Encrypt (ACME) validation
 ├── docs/SPRINGS.md         agent / API reference
 └── admin/
     ├── index.php           redirects to nodes.php or login.php
