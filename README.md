@@ -9,7 +9,7 @@ and node monitoring.
 Supported games: **Counter-Strike 1.6**, **Counter-Strike 2** and **Minecraft**
 (Paper).
 
-![Project Screenshot](images/swift1.jpg)
+![Project Screenshot](images/swiif1.jpg)
 ---
 
 ## Contents
