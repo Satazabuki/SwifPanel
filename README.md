@@ -10,6 +10,8 @@ Supported games: **Counter-Strike 1.6**, **Counter-Strike 2** and **Minecraft**
 (Paper).
 
 ![Project Screenshot](images/swiif1.jpg)
+
+![Project Screenshot](images/swiif2.jpg)
 ---
 
 ## Panel Version
