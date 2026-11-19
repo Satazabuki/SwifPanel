@@ -11,7 +11,7 @@ Supported games: **Counter-Strike 1.6 / 2**, **Minecraft** (Paper), **Garry's Mo
 
 ---
 
-![Project Screenshot](images/swift1.jpg)
+![Project Screenshot](images/swiif1.jpg)
 
 ---
 
