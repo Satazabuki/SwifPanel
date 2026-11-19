@@ -163,7 +163,7 @@ Client login/registration pages also live in the web root.
 ### Option A: web installer (recommended)
 
 1. **Upload** the complete project to your web root (including the `install/` folder).
-2. **Create an empty database and a user** for it (aaPanel: Database > Add), or use a MySQL user that may create databases.
+2. **Create an empty database and a user** for it or use a MySQL user that may create databases.
 3. Open **`https://YOUR-PANEL/install/install.php`**. The installer:
    - checks PHP (7.4+), the extensions (`pdo_mysql`, `curl`, `openssl`, `json`, `mbstring`, optional `zip`), folder permissions and that the panel files are present;
    - lets you enter the database host, name, user and password and **test the connection** (optionally creates the database);
