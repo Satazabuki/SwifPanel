@@ -381,7 +381,7 @@ with a **Pay now** button on every open one.
 
 ```bash
 # command line, once a day (aaPanel: Cron -> Shell script)
-php /www/wwwroot/gp.marinkovic.biz/payments/cron_reminders.php
+php /www/wwwroot/panel.yourdomain.com/payments/cron_reminders.php
 
 # or by URL (aaPanel: Cron -> Visit URL)
 https://YOUR-PANEL/payments/cron_reminders.php?key=CRON_KEY
@@ -675,7 +675,7 @@ How it works: the nodes ask the running game servers directly (Steam A2S query f
 
 Setup (once): update the nodes (re-run the node installer, no server restart needed) and add a cron job that runs every minute (every 2 minutes is fine too):
 
-    * * * * * php /www/wwwroot/gp.marinkovic.biz/stats/collect.php >/dev/null 2>&1
+    * * * * * php /www/wwwroot/panel.yourdomain.com/stats/collect.php >/dev/null 2>&1
 
 Charts fill in as samples arrive. The `stats/` folder is closed to the web (`.htaccess`); on nginx add `location ^~ /stats/ { deny all; }`. Game servers must answer queries on their game port (Rust and Valheim: game port + 1, as the agent already sets up). The firewall rule for the node only has to allow the panel to reach port 8085; queries run on the node itself.
 
@@ -691,7 +691,7 @@ Charts fill in as samples arrive. The `stats/` folder is closed to the web (`.ht
   `location ^~ /backups/files/ { deny all; }` to the site configuration and make `backups/files/` writable by the web
   server (user `www`).
 - **Automatic backups**: tick the box, choose how many to keep (manual backups are never deleted automatically) and add
-  the cron job shown on the page, e.g. daily: `php /www/wwwroot/gp.marinkovic.biz/backups/cron_backup.php`
+  the cron job shown on the page, e.g. daily: `php /www/wwwroot/panel.yourdomain.com/backups/cron_backup.php`
   (command line only). The page shows the result of the last automatic run.
 - Restore: download the file and import it (phpMyAdmin, or `gunzip -c FILE.sql.gz | mysql -u USER -p DATABASE`).
   There is deliberately no one-click restore. Backups hold all users' data and password hashes: keep them private and
