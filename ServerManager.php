@@ -11,14 +11,14 @@ class ServerManager {
         return true;
     }
 
-    private function request($method, $endpoint, $data = null) {
+    private function request($method, $endpoint, $data = null, $timeout = 12) {
         $ch = curl_init($this->baseUrl . $endpoint);
         $headers = [
             "Authorization: Bearer " . $this->token,
             "Content-Type: application/json"
         ];
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+        curl_setopt($ch, CURLOPT_TIMEOUT, (int)$timeout);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         if ($method === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
@@ -65,7 +65,7 @@ class ServerManager {
     }
 
     public function stopServer($server) {
-        $this->request('POST', '/api/servers/stop', ['screen_name' => $server['screen_name']]);
+        $this->request('POST', '/api/servers/stop', ['screen_name' => $server['screen_name']], 40);
         return "Springs Docker container stopped.";
     }
 

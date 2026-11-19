@@ -1,0 +1,76 @@
+SwiftPanel update - deployment guide
+====================================
+
+Contents
+  panel/            -> upload into the panel web root (/www/wwwroot/gp.marinkovic.biz/), keep the folders
+                       (admin/, payments/, mods/). Existing files are replaced.
+  node-installer/   -> springs_install.php goes to the site that serves your installer URL
+                       (the one you call with curl ".../springs_install.php?port=8085&token=...").
+  README.md, docs/  -> documentation, keep them in your own repository (not in the web root).
+
+Your own files are NOT in this package and stay untouched: config.php, auth.php, mailer.php, logout.php,
+login pages, assets/, vendor/, port_helper.php, node_stats_ajax.php (your original).
+
+Steps
+ 1. Back up the panel folder and the database.
+ 2. Upload everything inside panel/ into the web root (overwrite). Keep the mods/files/ folder with its
+    .htaccess and index.html, and make mods/files/ writable by the web server (aaPanel: user www).
+ 3. Check the uploaded PHP files:   php -l file.php   (each file must start with "<?php").
+ 4. nginx (aaPanel): add to the site configuration  ->  location ^~ /mods/files/ { deny all; }
+ 5. Upload node-installer/springs_install.php, then run on EVERY node:
+        curl "https://YOUR-INSTALLER-SITE/springs_install.php?port=8085&token=NODE_TOKEN" | bash
+    For old broken CS2 servers use "Reinstall files" in Admin > Manage Server.
+    IMPORTANT for the console: the nodes MUST be updated (this step), and every server that is already
+    running must be restarted ONCE afterwards. CS 1.6 then runs inside a terminal (Metamod / AMX Mod X output
+    appears in the console, no RCON password in the log), CS2 starts in console mode and Rust RCON works.
+    Until then the panel falls back to the old behaviour and says so.
+    CS 1.6 / ReHLDS: NEW CS 1.6 servers are installed with the ReHLDS engine automatically. EXISTING CS 1.6 servers
+    keep the classic engine until you stop them and press "Update ReHLDS" on their console page (once; it also switches the game files to the Steam legacy build, which ReHLDS requires), then start
+    them again. The node must be able to reach api.github.com and github.com for this.
+ 6. Open Admin > Payments once (creates the tables, adds invoices for old orders). Then:
+      - enter the PayPal Client ID / Secret / Webhook ID, set prices, fill in the Site URL, Save, Test connection
+      - PayPal webhook URL:  https://YOUR-PANEL/payments/paypal_webhook.php
+ 7. Add a daily cron job (aaPanel: Cron):
+        php /www/wwwroot/gp.marinkovic.biz/payments/cron_reminders.php
+ 8. Open Admin > Mods, set the panel address under "Download settings" (needed for uploaded files) and
+    add the first mods/plugins. Max upload 100 MB: check PHP upload_max_filesize and post_max_size.
+ 9. Live console: it keeps one PHP worker per open console (about 100 s, then it reconnects). Make sure PHP-FPM has
+    enough workers. If the console updates in bursts, add  fastcgi_buffering off;  to the site's nginx config.
+10. Database backups (Admin > Backups): make backups/files/ writable by the web server (aaPanel: user www), add to the
+    nginx site configuration  ->  location ^~ /backups/files/ { deny all; }  and, for automatic backups, a daily cron job:
+        php /www/wwwroot/gp.marinkovic.biz/backups/cron_backup.php
+    Then switch "Automatic backups" on in Admin > Backups. Also copy the backups off the server now and then.
+11. Rotate the node tokens and the database password that were pasted in chat earlier, and restrict the
+    agent port 8085 to the panel server's IP.
+
+Note: ServerManager.php is the restored original with the 40 s stop timeout. If you changed it yourself since,
+keep your version and only make sure it matches the one you had before.
+
+11. Server statistics (clients: Stats button on the dashboard): upload panel/server_stats.php, panel/dashboard.php and the new
+    panel/stats/ folder, re-run the node installer on every node (adds the player query; no game server restart needed) and add a
+    cron job every minute:
+        * * * * * php /www/wwwroot/gp.marinkovic.biz/stats/collect.php >/dev/null 2>&1
+    The table server_stats is created automatically. Charts need a few hours of samples to become interesting. On nginx add
+        location ^~ /stats/ { deny all; }
+
+12. Profile page, e-mail change and 2FA: upload panel/profile.php, panel/twofa_lib.php, panel/login_2fa.php, panel/confirm_email.php,
+    panel/assets/qrcode.js, panel/admin/account.php and panel/admin/nav.php (admin menu, now with "My Account"), and the changed
+    panel/index.php and panel/admin/login.php (they now ask for the 2FA code). Database changes happen automatically. In the
+    nginx site configuration nothing is needed. Test: set up 2FA for a test account, sign out and in again BEFORE relying on it,
+    and keep the recovery codes. For your own admin account keep a second admin session open while testing.
+
+13. New home page and game icons: upload panel/index.php, panel/game_icons.php, panel/dashboard.php and the folder panel/assets/games/
+    (with its README.txt). Copy the game banners you have the right to use into assets/games/ as cs16.jpg, cs2.jpg, minecraft.jpg, ... (16:9, see
+    the README there). Without them the cards show coloured banners with a pictogram.
+
+
+14. Languages (English / Serbian): upload panel/lang.php, the folder panel/lang/ (sr/*.php) and EVERY changed page (each page now has one
+    line before <!DOCTYPE html> that starts the translation) - simplest is to upload the whole update zip. Click a flag in the top menu;
+    the choice is kept in a cookie. First-time visitors with a Serbian/Croatian/Bosnian browser get Serbian automatically.
+    Add a language: add it in lang.php (SWIFT_LANGS + flag) and create lang/<code>/*.php. Untranslated texts simply stay in English;
+    to find them set the environment variable SWIFT_LANG_MISSING=/tmp/missing.txt for PHP and browse the site in that language.
+
+15. Footer and legal pages: upload panel/legal_lib.php, panel/terms.php, panel/privacy.php, panel/admin/legal.php, panel/admin/nav.php, the lang/ folder
+    and every changed client page (index, dashboard, server, files, profile, tickets, server_stats, login_2fa, confirm_email, mods/index,
+    payments/payments_lib). The table is created automatically. Then open Admin > Legal Pages and write the Terms of Service and the
+    Privacy Policy (English and/or Serbian). Until you do, the pages show "This page has not been published yet."

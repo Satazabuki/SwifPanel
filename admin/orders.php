@@ -3,11 +3,14 @@ require_once 'guard.php';
 require_once '../config.php';
 require_once '../mailer.php';
 require_once '../port_helper.php';
+require_once '../games.php';
+require_once '../payments/payments_lib.php';
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     game VARCHAR(32) NOT NULL,
+    location VARCHAR(64) NULL,
     server_name VARCHAR(120) NOT NULL,
     slots INT DEFAULT 32,
     ram_mb INT DEFAULT 2048,
@@ -15,6 +18,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
     server_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+swiftPayEnsureSchema($pdo);
 
 $notice = '';
 $error = '';
@@ -24,7 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['cancel_order']) && $oid > 0) {
         $pdo->prepare("UPDATE orders SET status = 'Cancelled' WHERE id = ? AND status = 'Pending'")->execute([$oid]);
-        $notice = "Order #{$oid} has been cancelled.";
+        swiftPayCancelOrderInvoices($pdo, $oid);
+        $payState = $pdo->prepare("SELECT payment_status FROM orders WHERE id = ?");
+        $payState->execute([$oid]);
+        $notice = "Order #{$oid} has been cancelled." . ($payState->fetchColumn() === 'Paid' ? ' It was already paid - refund it on the Payments page if needed.' : '');
     } elseif (isset($_POST['approve_order']) && $oid > 0) {
         $boxId = (int)($_POST['box_id'] ?? 0);
         $oStmt = $pdo->prepare("SELECT o.*, u.username, u.email FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = ? AND o.status = 'Pending'");
@@ -37,13 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$order || !$box) {
             $error = 'Invalid order or target node selected.';
+        } elseif (($order['payment_status'] ?? 'Free') === 'Unpaid') {
+            $error = "Order #{$oid} has not been paid yet. Wait for the PayPal payment, or record an offline payment on the Payments page.";
+        } elseif (($order['payment_status'] ?? 'Free') === 'Refunded') {
+            $error = "The payment for order #{$oid} was refunded, so it cannot be approved. Cancel the order instead.";
+        } elseif (($port = swiftAllocatePort($pdo, $box, $order['game'])) <= 0) {
+            $error = 'No free game port is available on this node for ' . swiftGameLabel($order['game']) . '.';
         } else {
-            $port = allocateFreePort($pdo, $box, $order['game']);
 
             $safeUser = preg_replace('/[^a-zA-Z0-9_-]/', '', $order['username']) ?: 'client';
             $installPath = "/var/lib/springs/volumes/{$safeUser}/{$order['game']}_{$port}";
             $screenName = "{$order['game']}_{$port}_" . substr(md5(uniqid('', true)), 0, 5);
-            $defaultMap = ($order['game'] === 'minecraft') ? 'world' : 'de_dust2';
+            $defaultMap = swiftDefaultMap($order['game']);
 
             $ins = $pdo->prepare("INSERT INTO servers (user_id, box_id, game, name, ip_address, port, max_players, start_map_or_world, ram_mb, install_path, screen_name, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'installing')");
             $ins->execute([
@@ -60,6 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $screenName
             ]);
             $newServerId = (int)$pdo->lastInsertId();
+            if (($order['payment_status'] ?? 'Free') === 'Paid' && (int)($order['period_months'] ?? 0) > 0) {
+                // The paid period starts when the server is created.
+                $pdo->prepare("UPDATE servers SET expires_at = DATE_ADD(NOW(), INTERVAL ? MONTH), renew_months = ? WHERE id = ?")
+                    ->execute([(int)$order['period_months'], (int)$order['period_months'], $newServerId]);
+            }
 
             $apiPort = (int)($box['ssh_port'] ?: 8085);
             $ch = curl_init("http://{$box['ip_address']}:{$apiPort}/api/servers/install");
@@ -90,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $boxes = $pdo->query("SELECT id, name, ip_address FROM boxes ORDER BY id ASC")->fetchAll();
 $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users u ON o.user_id = u.id ORDER BY FIELD(o.status,'Pending','Approved','Cancelled'), o.id DESC")->fetchAll();
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,6 +123,9 @@ $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users 
         .badge-pending { background: rgba(243,156,18,0.2); color: #f39c12; }
         .badge-approved { background: rgba(46,204,113,0.2); color: #2ecc71; }
         .badge-cancelled { background: rgba(231,76,60,0.2); color: #e74c3c; }
+        .badge-paid { background: rgba(46,204,113,0.2); color: #2ecc71; }
+        .badge-unpaid { background: rgba(243,156,18,0.2); color: #f39c12; }
+        .badge-refunded { background: rgba(149,165,166,0.2); color: #95a5a6; }
     </style>
 </head>
 <body>
@@ -112,17 +133,7 @@ $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users 
         <div class="logo">Swift<span>Panel</span> <small style="font-size:11px;color:#e74c3c;">ADMIN CONTROL</small></div>
         <div class="user-info">Admin: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href="login.php?logout=1">Logout</a></div>
     </div>
-    <div id="navbar">
-        <ul>
-            <li><a href="nodes.php">Remote Nodes</a></li>
-            <li><a href="client_servers.php">Client Servers</a></li>
-            <li><a href="create_server.php">Create Server</a></li>
-            <li><a href="users.php">Users</a></li>
-            <li><a href="orders.php" class="active">Orders</a></li>
-            <li><a href="tickets.php">Support Tickets</a></li>
-            <li><a href="smtp.php">SMTP / Email</a></li>
-        </ul>
-    </div>
+    <?php $adminNavActive = 'orders'; include __DIR__ . '/nav.php'; ?>
     <div class="container">
         <?php if ($notice): ?><div class="alert alert-success"><?php echo htmlspecialchars($notice); ?></div><?php endif; ?>
         <?php if ($error): ?><div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
@@ -141,6 +152,7 @@ $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users 
                                 <th>Game</th>
                                 <th>Server Name</th>
                                 <th>Slots / RAM</th>
+                                <th>Payment</th>
                                 <th>Status</th>
                                 <th>Date</th>
                                 <th>Approve / Cancel</th>
@@ -153,9 +165,10 @@ $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users 
                                 <tr>
                                     <td>#<?php echo (int)$o['id']; ?></td>
                                     <td><strong><?php echo htmlspecialchars($o['username']); ?></strong><br><small style="color:#94a3b8;"><?php echo htmlspecialchars($o['email']); ?></small></td>
-                                    <td><strong><?php echo strtoupper(htmlspecialchars($o['game'])); ?><br><small style="color:#2ecc71;"><?php echo htmlspecialchars($o['location'] ?? 'Any'); ?></small></strong></td>
+                                    <td><strong><?php echo htmlspecialchars(swiftGameLabel($o['game'])); ?><br><small style="color:#2ecc71;"><?php echo htmlspecialchars($o['location'] ?? 'Any'); ?></small></strong></td>
                                     <td><?php echo htmlspecialchars($o['server_name']); ?></td>
                                     <td><?php echo (int)$o['slots']; ?> Slots / <?php echo (int)$o['ram_mb']; ?> MB</td>
+                                    <td><?php $ps = $o['payment_status'] ?? 'Free'; if ($ps === 'Free'): ?><span style="color:#94a3b8;">&mdash;</span><?php else: ?><span class="badge badge-<?php echo strtolower(htmlspecialchars($ps)); ?>"><?php echo strtoupper(htmlspecialchars($ps)); ?></span><br><small style="color:#94a3b8;"><?php echo htmlspecialchars(swiftPayMoney($o['amount'], $o['currency'])); ?> / <?php echo (int)$o['period_months']; ?> mo</small><?php endif; ?></td>
                                     <td><span class="badge <?php echo $cls; ?>"><?php echo strtoupper(htmlspecialchars($o['status'])); ?></span></td>
                                     <td><?php echo htmlspecialchars($o['created_at']); ?></td>
                                     <td>
@@ -167,7 +180,7 @@ $orders = $pdo->query("SELECT o.*, u.username, u.email FROM orders o JOIN users 
                                                         <option value="<?php echo (int)$b['id']; ?>"><?php echo htmlspecialchars((!empty($b['location']) ? $b['location'] . ' - ' : '') . $b['name'] . ' (' . $b['ip_address'] . ')'); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button type="submit" name="approve_order" value="1" class="btn btn-green" style="padding:4px 10px;font-size:12px;">Approve</button>
+                                                <button type="submit" name="approve_order" value="1" class="btn btn-green" style="padding:4px 10px;font-size:12px;"<?php echo in_array(($o['payment_status'] ?? 'Free'), ['Unpaid', 'Refunded'], true) ? ' disabled title="Payment required"' : ''; ?>>Approve</button>
                                                 <button type="submit" name="cancel_order" value="1" class="btn btn-red" style="padding:4px 10px;font-size:12px;">Cancel</button>
                                             </form>
                                         <?php elseif ($o['status'] === 'Approved' && !empty($o['server_id'])): ?>

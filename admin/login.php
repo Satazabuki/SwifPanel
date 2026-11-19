@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../config.php';
+require_once __DIR__ . '/../twofa_lib.php';
+twofaEnsureSchema($pdo);
 
 if (isset($_GET['logout'])) {
     $_SESSION = [];
@@ -22,13 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($username === '' || $password === '') {
         $error = 'Please enter your admin username and password.';
     } else {
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, role FROM users WHERE username = ? LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, totp_enabled, totp_secret FROM users WHERE username = ? LIMIT 1");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
             if (($user['role'] ?? '') !== 'admin') {
                 $error = 'Access denied. Client accounts must sign in through the Client Portal.';
+            } elseif (twofaIsEnabled($user)) {
+                twofaStartChallenge($user, 'admin/nodes.php');
+                header('Location: ../login_2fa.php');
+                exit;
             } else {
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = (int)$user['id'];
@@ -43,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>

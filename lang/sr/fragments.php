@@ -1,0 +1,26 @@
+<?php
+// Sentences that the pages build from pieces (JavaScript text + values, text around <strong> and so on).
+return [
+    'The game printed nothing for "' => 'Igra nije ništa ispisala za "',
+    '". For plugin commands this usually means the plugin or its framework is not loaded' => '". Za komande plaginova to obično znači da plagin ili njegov framework nije učitan',
+    '- press Diagnose to find out why.' => '- pritisnite Dijagnostika da saznate zašto.',
+    'The panel sent an unexpected answer (HTTP' => 'Panel je poslao neočekivan odgovor (HTTP',
+    'is installed. Start the server, then type "version" in the console to check.' => 'je instaliran. Pokrenite server, pa u konzoli ukucajte "version" da proverite.',
+    'ReHLDS' => 'ReHLDS',
+    '%s Slots / %s MB' => '%s slotova / %s MB',
+    'Your e-mail address is now %s.' => 'Vaša e-mail adresa je sada %s.',
+    'The confirmation e-mail could not be sent (%s). Your address was not changed.' => 'Potvrdni e-mail nije mogao biti poslat (%s). Adresa nije promenjena.',
+    'We sent a confirmation link to %s. Your e-mail address stays the same until you open that link.' => 'Poslali smo link za potvrdu na %s. E-mail adresa ostaje ista dok ne otvorite taj link.',
+    'Too many wrong codes. This account is locked for %s minutes.' => 'Previše pogrešnih kodova. Nalog je zaključan na %s min.',
+    '"%s" was installed on "%s". Restart the server so it is loaded.' => '„%s“ je instaliran na „%s“. Restartujte server da se učita.',
+    'Item #%s' => 'Stavka #%s',
+    'SwiftPanel recovery codes for %s Each code works once.' => 'SwiftPanel kodovi za oporavak za %s Svaki kod važi jednom.',
+    'SwiftPanel recovery codes for' => 'SwiftPanel kodovi za oporavak za',
+    'Each code works once.' => 'Svaki kod važi jednom.',
+    'Client · member since %s · %s server' => 'Klijent · član od %s · %s server',
+    'Client · member since %s · %s servers' => 'Klijent · član od %s · %s servera',
+    'Administrator · member since %s' => 'Administrator · član od %s',
+    'Administrator' => 'Administrator',
+    'ON' => 'UKLJ.',
+    'OFF' => 'ISKLJ.',
+];

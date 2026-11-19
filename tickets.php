@@ -81,6 +81,7 @@ $listStmt = $pdo->prepare("SELECT t.*, s.name AS server_name FROM tickets t LEFT
 $listStmt->execute([$userId]);
 $tickets = $listStmt->fetchAll();
 ?>
+<?php require_once __DIR__ . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -110,6 +111,9 @@ $tickets = $listStmt->fetchAll();
     <div id="navbar">
         <ul>
             <li><a href="dashboard.php">Game Servers</a></li>
+            <li><a href="dashboard.php?page=order">Order Server</a></li>
+            <li><a href="dashboard.php?page=invoices">Invoices</a></li>
+            <li><a href="mods/index.php">Mods &amp; Plugins</a></li>
             <li><a href="tickets.php" class="active">Support Tickets</a></li>
             <li><a href="profile.php">My Profile</a></li>
         </ul>
@@ -171,5 +175,6 @@ $tickets = $listStmt->fetchAll();
             </div>
         <?php endif; ?>
     </div>
+<?php require_once __DIR__ . '/legal_lib.php'; echo swiftFooterHtml(); ?>
 </body>
 </html>

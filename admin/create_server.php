@@ -4,6 +4,7 @@ require_once '../auth.php';
 require_once '../config.php';
 require_once '../port_helper.php';
 require_once '../ServerManager.php';
+require_once '../games.php';
 
 $notice = '';
 $errorMsg = '';
@@ -25,19 +26,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_server'])) {
     $ownerId = (int)($_POST['user_id'] ?? $defaultUserId);
     $game = $_POST['game'];
     $name = trim($_POST['name']);
-    $port = (int)$_POST['port'];
+    $portRaw = strtolower(trim((string)($_POST['port'] ?? '')));
+    $autoPort = ($portRaw === '' || $portRaw === 'auto');   // empty or "auto": take the next free port from the node's pool
+    $port = $autoPort ? 0 : (int)$portRaw;
     $maxPlayers = (int)$_POST['max_players'];
     $startMap = trim($_POST['start_map_or_world']);
     $ramMb = (int)($_POST['ram_mb'] ?: 2048);
     $installPath = rtrim(trim($_POST['install_path']), '/');
 
-    if ($boxId && $name && $port && $installPath) {
+    if ($boxId && $name && $installPath && ($autoPort || $port)) {
         $boxStmt = $pdo->prepare("SELECT * FROM boxes WHERE id = ?");
         $boxStmt->execute([$boxId]);
         $box = $boxStmt->fetch();
 
         if (!$box) {
             $errorMsg = "Selected remote node does not exist.";
+        } elseif (!swiftGame($game)) {
+            $errorMsg = "Unknown game type.";
+        } elseif ($autoPort && ($port = swiftAllocatePort($pdo, $box, $game)) <= 0) {
+            $errorMsg = "No free game port is left in the port pool of {$box['name']} for " . swiftGameLabel($game) . ". Add ports on the Nodes page or pick another node.";
+        } elseif (!swiftPortBlockFree($pdo, $box, $game, $port)) {
+            $blk = swiftPortBlock($game);
+            $errorMsg = "Port {$port}" . ($blk > 1 ? "-" . ($port + $blk - 1) : "") . " overlaps another server on {$box['name']}" . ($blk > 1 ? " (" . swiftGameLabel($game) . " uses {$blk} consecutive ports)" : "") . ".";
         } elseif (in_array($port, getUsedPortsOnNode($pdo, $box), true)) {
             $nextFree = allocateFreePort($pdo, $box, $game);
             $errorMsg = "Port {$port} is already assigned or in use on {$box['name']}. Next available port: {$nextFree}.";
@@ -52,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_server'])) {
             }
             $selectedIp = trim($_POST['ip_address'] ?? '');
             $ipAddress = in_array($selectedIp, $allowedIps) ? $selectedIp : $box['ip_address'];
+            $installPath = str_replace('{port}', (string)$port, $installPath);   // the form leaves {port} in the path when the port is automatic
             try {
                 $mgr = new ServerManager();
                 $mgr->connect($box['ip_address'], $box['ssh_port'], $box['ssh_user'], $box['ssh_password']);
@@ -63,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_server'])) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $ins->execute([$ownerId, $boxId, $game, $name, $ipAddress, $port, $maxPlayers, $startMap, $ramMb, $installPath, $screenName]);
-                $notice = "Directory created and background download started on {$box['name']}! Check {$installPath}/install.log before starting.";
+                $notice = "Server created on {$ipAddress}:{$port} (" . ($autoPort ? "port assigned automatically" : "port chosen by you") . "). Directory created and background download started on {$box['name']}! Check {$installPath}/install.log before starting.";
             } catch (Exception $e) {
                 $errorMsg = "SSH Error: " . $e->getMessage();
             }
@@ -76,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_server'])) {
 $nodes = $pdo->query("SELECT * FROM boxes ORDER BY id ASC")->fetchAll();
 $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,17 +104,7 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
             Logged in as: <strong><?php echo htmlspecialchars($_SESSION["username"] ?? "admin"); ?></strong> | Database: <span style="color: #2ecc71;">Connected</span> | <a href="login.php?logout=1">Logout</a>
         </div>
     </div>
-    <div id="navbar">
-        <ul>
-            <li><a href="nodes.php">Remote Nodes</a></li>
-            <li><a href="client_servers.php">Client Servers</a></li>
-            <li><a href="create_server.php" class="active">Create Server</a></li>
-            <li><a href="users.php">Users</a></li>
-            <li><a href="orders.php">Orders</a></li>
-            <li><a href="tickets.php">Support Tickets</a></li>
-            <li><a href="smtp.php">SMTP / Email</a></li>
-        </ul>
-    </div>
+    <?php $adminNavActive = 'create_server'; include __DIR__ . '/nav.php'; ?>
 
     <div id="wrapper">
         
@@ -121,9 +123,9 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
             <div class="box">
                 <div class="box-header">Expected Binaries</div>
                 <div class="box-content" style="font-size: 11px;">
-                    <p style="margin-bottom: 5px;"><strong>CS 1.6:</strong> <code>./hlds_run</code></p>
-                    <p style="margin-bottom: 5px;"><strong>CS2:</strong> <code>./game/bin/linuxsteamrt64/cs2</code></p>
-                    <p><strong>Minecraft:</strong> <code>server.jar</code></p>
+                    <?php foreach (swiftGames() as $gSlug => $gInfo): ?>
+                        <p style="margin-bottom: 5px;"><strong><?php echo htmlspecialchars($gInfo['label']); ?>:</strong> <code><?php echo htmlspecialchars($gInfo['binary']); ?></code></p>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
@@ -172,10 +174,11 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
                                 <div class="form-row">
                                     <label>Game Type:</label>
                                     <select name="game" required>
-                                        <option value="cs16">Counter-Strike 1.6 (HLDS / ReHLDS)</option>
-                                        <option value="cs2">Counter-Strike 2 (Dedicated)</option>
-                                        <option value="minecraft">Minecraft (Java / Paper / Spigot)</option>
+                                        <?php foreach (swiftGames() as $gSlug => $gInfo): ?>
+                                            <option value="<?php echo htmlspecialchars($gSlug); ?>"><?php echo htmlspecialchars($gInfo['long_label']); ?></option>
+                                        <?php endforeach; ?>
                                     </select>
+                                    <small id="gameHint" style="display:block;margin-top:4px;opacity:0.75;"></small>
                                 </div>
 
                                 <div class="form-row">
@@ -197,21 +200,22 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
 
                                 <div class="form-row">
                                     <label>Game Port:</label>
-                                    <input type="text" name="port" value="27015" required>
+                                    <input type="text" name="port" value="auto" placeholder="auto" required>
+                                    <div style="font-size:12px;color:#8b95a7;margin-top:4px;">Leave <strong>auto</strong> to use the next free port from the node's port pool, or type a port to choose it yourself.</div>
                                 </div>
 
                                 <div class="form-row">
-                                    <label>Max Players (Counter-Strike):</label>
+                                    <label>Max Players:</label>
                                     <input type="text" name="max_players" value="32" required>
                                 </div>
 
                                 <div class="form-row">
-                                    <label>Startup Map (CS) or World Name (MC):</label>
+                                    <label id="mapLabel">Startup Map / World:</label>
                                     <input type="text" name="start_map_or_world" value="de_dust2" required>
                                 </div>
 
                                 <div class="form-row">
-                                    <label>RAM Allocation in MB (Minecraft Only):</label>
+                                    <label>RAM Allocation in MB:</label>
                                     <input type="text" name="ram_mb" value="2048">
                                 </div>
                             </div>
@@ -277,7 +281,8 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
             const rawUser = opt ? opt.textContent.split("(")[0].trim() : "client";
             const cleanUser = rawUser.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "client";
             const game = gameSel ? gameSel.value.trim().toLowerCase() : "cs16";
-            const port = portInp && portInp.value.trim() ? portInp.value.trim() : "27015";
+            const pv = portInp ? portInp.value.trim().toLowerCase() : "";
+            const port = /^[0-9]+$/.test(pv) ? pv : "{port}";
             pathInp.value = `/var/lib/springs/volumes/${cleanUser}/${game}_${port}`;
         }
 
@@ -285,6 +290,26 @@ $serverCount = $pdo->query("SELECT COUNT(*) FROM servers")->fetchColumn();
         if (gameSel)  gameSel.addEventListener("change", updateVolumePath);
         if (portInp)  portInp.addEventListener("input", updateVolumePath);
         updateVolumePath();
+
+        // Per-game defaults (port, slots, map/world, RAM) from games.php
+        const GAMES = <?php echo json_encode(swiftGamesForJs(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const mpInp  = document.querySelector("input[name='max_players']");
+        const mapInp = document.querySelector("input[name='start_map_or_world']");
+        const ramInp = document.querySelector("input[name='ram_mb']");
+        const hintEl = document.getElementById("gameHint");
+        const mapLbl = document.getElementById("mapLabel");
+        function applyGameDefaults() {
+            const g = gameSel ? GAMES[gameSel.value] : null;
+            if (!g) return;
+            if (portInp) portInp.value = "auto";
+            if (mpInp)   mpInp.value = g.slots_default;
+            if (mapInp)  mapInp.value = g.map;
+            if (ramInp)  ramInp.value = g.ram;
+            if (mapLbl)  mapLbl.textContent = g.map_label + ":";
+            if (hintEl)  hintEl.textContent = g.hint || "";
+            updateVolumePath();
+        }
+        if (gameSel) { gameSel.addEventListener("change", applyGameDefaults); applyGameDefaults(); }
     });
     </script>
 </body>

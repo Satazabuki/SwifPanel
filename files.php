@@ -1,6 +1,7 @@
 <?php
 require_once 'auth.php';
 require_once 'config.php';
+require_once 'games.php';
 
 $userId = (int)$_SESSION['user_id'];
 $isAdmin = (($_SESSION['role'] ?? '') === 'admin');
@@ -117,6 +118,7 @@ function formatBytes($bytes) {
     return round($bytes / 1048576, 2) . ' MB';
 }
 ?>
+<?php require_once __DIR__ . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,6 +143,9 @@ function formatBytes($bytes) {
     <div id="navbar">
         <ul>
             <li><a href="server.php?id=<?php echo (int)$server['id']; ?>">Server Management</a></li>
+            <li><a href="dashboard.php?page=order">Order Server</a></li>
+            <li><a href="dashboard.php?page=invoices">Invoices</a></li>
+            <li><a href="mods/index.php">Mods &amp; Plugins</a></li>
             <li><a href="tickets.php">Support Tickets</a></li>
             <li><a href="profile.php">My Profile</a></li>
         </ul>
@@ -163,9 +168,14 @@ function formatBytes($bytes) {
                         <a href="files.php?id=<?php echo (int)$server['id']; ?>&dir=cstrike/addons/amxmodx/configs&edit=cstrike/addons/amxmodx/configs/plugins.ini" class="btn" style="padding:4px 9px;font-size:12px;">plugins.ini</a>
                     <?php elseif ($server['game'] === 'cs2'): ?>
                         <a href="files.php?id=<?php echo (int)$server['id']; ?>&dir=game/csgo/cfg&edit=game/csgo/cfg/server.cfg" class="btn" style="padding:4px 9px;font-size:12px;">server.cfg</a>
+                        <a href="files.php?id=<?php echo (int)$server['id']; ?>&edit=springs.env" class="btn" style="padding:4px 9px;font-size:12px;">springs.env (settings)</a>
                     <?php elseif ($server['game'] === 'minecraft'): ?>
                         <a href="files.php?id=<?php echo (int)$server['id']; ?>&edit=server.properties" class="btn" style="padding:4px 9px;font-size:12px;">server.properties</a>
                         <a href="files.php?id=<?php echo (int)$server['id']; ?>&edit=bukkit.yml" class="btn" style="padding:4px 9px;font-size:12px;">bukkit.yml</a>
+                    <?php elseif (($gDef = swiftGame($server['game'])) && !empty($gDef['configs'])): ?>
+                        <?php foreach ($gDef['configs'] as $cf): ?>
+                            <a href="files.php?id=<?php echo (int)$server['id']; ?>&dir=<?php echo urlencode($cf[1]); ?>&edit=<?php echo urlencode($cf[2]); ?>" class="btn" style="padding:4px 9px;font-size:12px;"><?php echo htmlspecialchars($cf[0]); ?></a>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
 
@@ -238,5 +248,6 @@ function formatBytes($bytes) {
             </div>
         </div>
     </div>
+<?php require_once __DIR__ . '/legal_lib.php'; echo swiftFooterHtml(); ?>
 </body>
 </html>

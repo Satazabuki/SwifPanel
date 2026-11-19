@@ -37,6 +37,7 @@ if ($viewId > 0) {
 }
 $tickets = $pdo->query("SELECT t.*, u.username AS client_name, s.name AS server_name FROM tickets t JOIN users u ON t.user_id = u.id LEFT JOIN servers s ON t.server_id = s.id ORDER BY FIELD(t.status,'Open','Answered','Closed'), t.updated_at DESC")->fetchAll();
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,16 +64,7 @@ $tickets = $pdo->query("SELECT t.*, u.username AS client_name, s.name AS server_
         <div class="logo">Swift<span>Panel</span> <small style="font-size:11px;color:#e74c3c;">ADMIN CONTROL</small></div>
         <div class="user-info">Admin: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href="login.php?logout=1">Logout</a></div>
     </div>
-    <div id="navbar">
-        <ul>
-            <li><a href="nodes.php">Remote Nodes</a></li>
-            <li><a href="client_servers.php">Client Servers</a></li>
-            <li><a href="create_server.php">Create Server</a></li>
-            <li><a href="users.php">Users</a></li>
-            <li><a href="orders.php">Orders</a></li>
-            <li><a href="tickets.php" class="active">Support Tickets</a></li>
-        </ul>
-    </div>
+    <?php $adminNavActive = 'tickets'; include __DIR__ . '/nav.php'; ?>
     <div class="container">
         <?php if ($notice): ?><div class="alert alert-success"><?php echo htmlspecialchars($notice); ?></div><?php endif; ?>
         <?php if ($activeTicket): ?>

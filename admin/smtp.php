@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $cfg = $pdo->query("SELECT * FROM smtp_settings WHERE id = 1")->fetch();
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,17 +57,7 @@ $cfg = $pdo->query("SELECT * FROM smtp_settings WHERE id = 1")->fetch();
         <div class="logo">Swift<span>Panel</span> <small style="font-size:11px;color:#e74c3c;">ADMIN CONTROL</small></div>
         <div class="user-info">Admin: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href="login.php?logout=1">Logout</a></div>
     </div>
-    <div id="navbar">
-        <ul>
-            <li><a href="nodes.php">Remote Nodes</a></li>
-            <li><a href="client_servers.php">Client Servers</a></li>
-            <li><a href="create_server.php">Create Server</a></li>
-            <li><a href="users.php">Users</a></li>
-            <li><a href="orders.php">Orders</a></li>
-            <li><a href="tickets.php">Support Tickets</a></li>
-            <li><a href="smtp.php" class="active">SMTP / Email</a></li>
-        </ul>
-    </div>
+    <?php $adminNavActive = 'smtp'; include __DIR__ . '/nav.php'; ?>
     <div class="container">
         <?php if ($notice): ?><div class="alert alert-success"><?php echo htmlspecialchars($notice); ?></div><?php endif; ?>
         <?php if ($error): ?><div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>

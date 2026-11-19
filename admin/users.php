@@ -60,6 +60,7 @@ if ($isAdmin && isset($_GET['delete'])) {
 
 $allUsers = $isAdmin ? $pdo->query("SELECT id, username, email, role, created_at FROM users ORDER BY id ASC")->fetchAll() : [];
 ?>
+<?php require_once dirname(__DIR__) . '/lang.php'; swiftLangStart(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,14 +77,7 @@ $allUsers = $isAdmin ? $pdo->query("SELECT id, username, email, role, created_at
             Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> (<?php echo htmlspecialchars($_SESSION['role']); ?>) | <a href="login.php?logout=1">Logout</a>
         </div>
     </div>
-    <div id="navbar">
-        <ul>
-            <li><a href="nodes.php">Remote Nodes</a></li>
-            <li><a href="client_servers.php">Client Servers</a></li>
-            <li><a href="create_server.php">Create Server</a></li>
-            <li><a href="users.php" class="active">Users</a></li>
-        </ul>
-    </div>
+    <?php $adminNavActive = 'users'; include __DIR__ . '/nav.php'; ?>
 
     <div id="wrapper">
         
